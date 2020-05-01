@@ -1,0 +1,65 @@
+version: '3.3'
+
+services:
+ 
+    mautic_db:
+        image: mysql:5.7
+        container_name: mautic_db
+        volumes:
+            - ./data:/var/lib/mysql
+            - ./mysql-conf/my.cnf:/etc/mysql/my.cnf
+        environment:
+            MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+            MYSQL_DATABASE: ${DB_NAME}
+            MYSQL_USER: ${DB_USER}
+            MYSQL_PASSWORD: ${DB_USER_PASS}
+            TZ: Asia/Tokyo
+        networks:
+            app_net:
+                ipv4_address: '172.18.0.2'
+
+    mautic_php:
+        image: mautic/mautic:latest
+        container_name: mautic_php
+        depends_on:
+            - mautic_db
+        volumes:
+            - ./mautic:/var/www/html
+            - ./php-conf/mautic-conf.ini:/usr/local/etc/php/conf.d/mautic-conf.ini
+        environment:
+            MAUTIC_DB_HOST: mautic_db
+            MAUTIC_DB_NAME: ${DB_NAME}
+            MAUTIC_DB_USER: ${DB_USER}
+            MAUTIC_DB_PASSWORD: ${DB_USER_PASS}
+            TZ: Asia/Tokyo
+        networks:
+            app_net:
+                ipv4_address: '172.18.0.3'
+
+    https-portal:
+        image: steveltn/https-portal:latest
+        container_name: https-portal
+        depends_on:
+            - mautic_php
+        volumes:
+            - ./ssl_certs:/var/lib/https-portal
+        ports:
+            - '80:80'
+            - '443:443'
+        environment:
+            DOMAINS: '${HOST_DOMAIN} -> http://mautic_php:80'
+            STAGE: '${PRODUCTION_STAGE}'
+            CLIENT_MAX_BODY_SIZE: 64M
+            TZ: Asia/Tokyo
+        networks:
+            app_net:
+                ipv4_address: '172.18.0.4'
+
+networks:
+    app_net:
+        driver: bridge
+        ipam:
+            driver: default
+            config:
+                - subnet: '172.18.0.0/16'
+ 
